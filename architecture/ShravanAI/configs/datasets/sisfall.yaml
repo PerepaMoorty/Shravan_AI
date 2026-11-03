@@ -1,0 +1,11 @@
+defaults:
+  - ../base
+
+dataset:
+  name: "sisfall"
+  # Points at the real SisFall dataset already present at the repo root
+  # (<repo>/datasets/sisfall_dataset), shared with data_pipeline/, rather
+  # than duplicating it under this project's own data/raw/sisfall/.
+  sensor_root: "../../datasets/sisfall_dataset"
+  label_root: null  # SisFall has no separate label file -- fall/ADL is encoded in the filename prefix (D.. vs F..), and there are no frame-level onset/impact labels at all (see readers_sisfall.py docstring).
+  native_rate_hz: 200

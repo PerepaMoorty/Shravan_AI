@@ -1,0 +1,11 @@
+defaults:
+  - ../base
+
+dataset:
+  name: "kfall"
+  # Points at the real KFall dataset already present at the repo root
+  # (<repo>/datasets/kfall_dataset), shared with data_pipeline/, rather
+  # than duplicating it under this project's own data/raw/kfall/.
+  sensor_root: "../../datasets/kfall_dataset/sensor_data"
+  label_root: "../../datasets/kfall_dataset/label_data"
+  native_rate_hz: 100

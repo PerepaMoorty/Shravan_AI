@@ -1,0 +1,11 @@
+{
+  "_comment": "Controls which real KFall trials scripts/export_for_unity.py sends to Unity. Edit subject_range (or subjects, an explicit list) and re-run export_for_unity.py to swap which range of subjects the digital twin demos -- no code changes needed.",
+
+  "subject_range": "SA06-SA15",
+  "subjects": [],
+
+  "max_trials_per_direction": 3,
+  "max_adl_trials": 3,
+
+  "prefer_trials_that_showcase_the_model": true
+}

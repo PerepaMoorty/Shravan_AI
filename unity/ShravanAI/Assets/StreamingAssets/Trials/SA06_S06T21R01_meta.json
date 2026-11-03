@@ -1,0 +1,16 @@
+{
+  "subject_id": "SA06",
+  "trial_id": "S06T21R01",
+  "fall_direction": "fall_backward",
+  "duration_s": 4.7,
+  "frame_count": 470,
+  "has_onset": true,
+  "onset_timestamp_s": 1.23,
+  "has_impact": true,
+  "impact_timestamp_s": 1.62,
+  "has_onset_lead_ms": true,
+  "onset_lead_ms": -440.00000000000017,
+  "has_impact_lead_ms": true,
+  "impact_lead_ms": 30.00000000000003,
+  "summary": "Model lagged onset by 440ms; detected 30ms before impact"
+}

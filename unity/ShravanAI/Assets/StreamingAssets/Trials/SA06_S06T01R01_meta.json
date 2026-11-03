@@ -1,0 +1,16 @@
+{
+  "subject_id": "SA06",
+  "trial_id": "S06T01R01",
+  "fall_direction": "normal_only",
+  "duration_s": 30.72,
+  "frame_count": 3072,
+  "has_onset": false,
+  "onset_timestamp_s": 0.0,
+  "has_impact": false,
+  "impact_timestamp_s": 0.0,
+  "has_onset_lead_ms": false,
+  "onset_lead_ms": 0.0,
+  "has_impact_lead_ms": false,
+  "impact_lead_ms": 0.0,
+  "summary": "Model never fired a pre-impact prediction; never confirmed the fall"
+}

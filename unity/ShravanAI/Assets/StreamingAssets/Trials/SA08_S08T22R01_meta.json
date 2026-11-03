@@ -1,0 +1,16 @@
+{
+  "subject_id": "SA08",
+  "trial_id": "S08T22R01",
+  "fall_direction": "fall_lateral",
+  "duration_s": 5.78,
+  "frame_count": 578,
+  "has_onset": true,
+  "onset_timestamp_s": 2.13,
+  "has_impact": true,
+  "impact_timestamp_s": 2.69,
+  "has_onset_lead_ms": true,
+  "onset_lead_ms": -560.0,
+  "has_impact_lead_ms": true,
+  "impact_lead_ms": 40.000000000000036,
+  "summary": "Model lagged onset by 560ms; detected 40ms before impact"
+}

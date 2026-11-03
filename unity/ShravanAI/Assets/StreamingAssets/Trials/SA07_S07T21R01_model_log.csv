@@ -1,0 +1,3 @@
+frame_idx,timestamp_s,event,confidence
+80,0.8,pre_impact_predicted,0.8414710164070129
+199,1.99,fall_detected,0.967416524887085

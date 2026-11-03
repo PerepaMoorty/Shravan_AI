@@ -1,0 +1,23 @@
+# Name: Moorty Perepa
+
+# Local-only material (mirrors the Capstone convention)
+/.claude/
+/.generated/
+/paper/
+/datasets/
+/docs/INTERNSHIP_REPORT_TECHNICAL_SUMMARY.md
+/docs/assets/poster/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# OS / editor
+.vs/
+.vscode/
+Thumbs.db
+.DS_Store

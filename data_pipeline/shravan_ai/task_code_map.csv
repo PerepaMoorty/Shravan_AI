@@ -1,0 +1,15 @@
+task_code,direction_override,notes
+# Manual overrides for KFall task code -> direction label.
+#
+# By default, direction is inferred automatically per trial from the label
+# file's own "Description" text (keyword match on forward/backward/lateral).
+# That is more reliable than a hardcoded task-code table, since KFall label
+# files already narrate each trial in plain English.
+#
+# Use this file only for trials the automatic classifier can't confidently
+# resolve (logged to output/trial_timelines/_needs_review.csv after a run).
+# Fill in direction_override with one of:
+#   fall_forward | fall_backward | fall_lateral | normal_only
+#
+# Example (uncomment and edit once you've checked the real KFall label sheet):
+# F09,fall_forward,confirmed against KFall paper Table 2 description

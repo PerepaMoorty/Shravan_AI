@@ -1,0 +1,16 @@
+{
+  "subject_id": "SA08",
+  "trial_id": "S08T20R02",
+  "fall_direction": "fall_forward",
+  "duration_s": 6.01,
+  "frame_count": 601,
+  "has_onset": true,
+  "onset_timestamp_s": 1.83,
+  "has_impact": true,
+  "impact_timestamp_s": 2.86,
+  "has_onset_lead_ms": true,
+  "onset_lead_ms": -910.0000000000001,
+  "has_impact_lead_ms": true,
+  "impact_lead_ms": 40.000000000000036,
+  "summary": "Model lagged onset by 910ms; detected 40ms before impact"
+}

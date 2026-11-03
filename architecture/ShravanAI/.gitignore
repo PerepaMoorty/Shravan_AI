@@ -1,0 +1,8 @@
+build/
+wandb/
+
+# Datasets and run outputs are generated locally, never committed
+data/*/*
+!data/*/.gitkeep
+results/*
+!results/.gitkeep
