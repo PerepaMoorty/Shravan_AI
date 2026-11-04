@@ -30,6 +30,8 @@ Usage:
     python scripts/select_threshold_on_validation.py
     python scripts/select_threshold_on_validation.py --reuse-probabilities   # skip inference
     python scripts/select_threshold_on_validation.py --max-false-alarm-rate 0.05
+    python scripts/select_threshold_on_validation.py \
+        --model convlstm=results/prediction_model_convlstm_retrain/evaluation_report.json
 
 Writes to results/prediction_model/threshold_selection/:
     window_probabilities.parquet   per-window probabilities, val + test, every architecture
@@ -154,7 +156,7 @@ def _plot(arch: str, val_sweep, test_sweep, chosen: EventLevelResult, test_locke
         ax.grid(alpha=0.3)
     axes[0].axhline(cap, color="grey", ls=":", lw=1, label=f"False-alarm cap = {cap:.0%}")
     axes[1].axvline(PREVIOUS_TEST_TUNED_THRESHOLD, color="tab:red", ls=":", lw=1,
-                    label=f"Previous (test-tuned) = {PREVIOUS_TEST_TUNED_THRESHOLD:.2f}")
+                    label=f"Previous production = {PREVIOUS_TEST_TUNED_THRESHOLD:.2f}")
     axes[1].plot([test_locked.threshold] * 2, [test_locked.detection_rate, test_locked.false_alarm_rate], "ko")
     axes[0].set_ylabel("Rate")
     for ax in axes:
@@ -165,6 +167,28 @@ def _plot(arch: str, val_sweep, test_sweep, chosen: EventLevelResult, test_locke
     plt.close(fig)
 
 
+def _resolve_model_sources(overrides: list[str] | None, results_dir: Path) -> dict[str, tuple[dict, dict]]:
+    """{architecture: (its evaluation report, its entry in that report)}.
+    Defaults to every architecture in <results_dir>/evaluation_report.json;
+    `--model ARCH=REPORT` entries replace or add single architectures.
+    Every checkpoint file must exist."""
+    def entries(report_path: Path) -> dict[str, tuple[dict, dict]]:
+        report = json.loads(Path(report_path).read_text())
+        return {a["architecture"]: (report, a) for a in report["architectures"]}
+
+    sources = entries(results_dir / "evaluation_report.json")
+    for item in overrides or []:
+        arch, _, report_path = item.partition("=")
+        found = entries(Path(report_path))
+        if arch not in found:
+            raise ValueError(f"--model {item}: {report_path} has no {arch!r} entry (has {sorted(found)})")
+        sources[arch] = found[arch]
+    missing = [a for a, (_, e) in sources.items() if not Path(e["model_path"]).exists()]
+    if missing:
+        raise FileNotFoundError(f"Checkpoint file missing for {missing}; point them at a valid report with --model.")
+    return sources
+
+
 # ---------------------------------------------------------------- main
 
 def main() -> None:
@@ -173,6 +197,10 @@ def main() -> None:
     parser.add_argument("--results-dir", default=str(DEFAULT_RESULTS_DIR))
     parser.add_argument("--max-false-alarm-rate", type=float, default=0.10)
     parser.add_argument("--batch-size", type=int, default=1024)
+    parser.add_argument("--model", action="append", metavar="ARCH=REPORT_JSON",
+                        help="Take ARCH's checkpoint from the given evaluation_report.json instead of "
+                             "<results-dir>/evaluation_report.json. Repeatable. Architectures not named "
+                             "here still come from <results-dir>/evaluation_report.json.")
     parser.add_argument("--reuse-probabilities", action="store_true",
                         help="Skip inference and reuse window_probabilities.parquet from a previous run.")
     args = parser.parse_args()
@@ -182,8 +210,10 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     probs_path = out_dir / "window_probabilities.parquet"
 
-    evaluation_report = json.loads((results_dir / "evaluation_report.json").read_text())
-    architectures = [a["architecture"] for a in evaluation_report["architectures"]]
+    sources = _resolve_model_sources(args.model, results_dir)
+    architectures = list(sources)
+    for arch, (report, entry) in sources.items():
+        print(f"  {arch}: {entry['model_path']}")
     windowing_config = PredictionWindowingConfig()
 
     if args.reuse_probabilities:
@@ -193,11 +223,12 @@ def main() -> None:
         print("Rebuilding dense windows and the subject split used for training...")
         windows_df = build_windows_manifest(load_manifest(args.manifest), config=windowing_config)
         train_df, val_df, test_df = split_by_subject(windows_df, PredictionSplitConfig())
-        expected = (evaluation_report["train_size"], evaluation_report["val_size"], evaluation_report["test_size"])
         actual = (len(train_df), len(val_df), len(test_df))
-        if actual != expected:
-            raise RuntimeError(f"Split does not match the one the checkpoints were trained on: "
-                               f"{actual} vs evaluation_report.json {expected}. Refusing to continue.")
+        for arch, (report, _) in sources.items():
+            expected = (report["train_size"], report["val_size"], report["test_size"])
+            if actual != expected:
+                raise RuntimeError(f"Split does not match the one {arch} was trained on: "
+                                   f"{actual} vs its report {expected}. Refusing to continue.")
         print(f"  split matches training: train/val/test windows = {actual}")
         print(f"  val subjects:  {sorted(val_df['global_subject_id'].unique())}")
         print(f"  test subjects: {sorted(test_df['global_subject_id'].unique())}")
@@ -205,10 +236,10 @@ def main() -> None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Running inference on {device} for {architectures}...")
         models = {}
-        for a in evaluation_report["architectures"]:
-            m = load_prediction_model(Path(a["model_path"])).to(device)
+        for arch, (_, entry) in sources.items():
+            m = load_prediction_model(Path(entry["model_path"])).to(device)
             m.eval()
-            models[a["architecture"]] = m
+            models[arch] = m
         probs_df = pd.concat([
             _run_inference(models, val_df, windowing_config, device, args.batch_size, "val"),
             _run_inference(models, test_df, windowing_config, device, args.batch_size, "test"),
@@ -249,7 +280,7 @@ def main() -> None:
         print(f"\n=== {arch} ===")
         print(f"  VAL  selected   : {_fmt(chosen)}" + ("   (FALLBACK: no threshold met the cap)" if fallback else ""))
         print(f"  TEST locked     : {_fmt(test_locked)}")
-        print(f"  TEST at 0.80    : {_fmt(test_previous)}   <- previous, test-tuned (optimistic)")
+        print(f"  TEST at 0.80    : {_fmt(test_previous)}   <- previous production threshold (originally tuned on test)")
 
         _plot(arch, val_sweep, test_sweep, chosen, test_locked, args.max_false_alarm_rate,
               out_dir / f"sweep_{arch}.png")
@@ -258,7 +289,7 @@ def main() -> None:
             "used_fallback": fallback,
             "val_at_selected": _result_dict(chosen),
             "test_at_selected_locked": _result_dict(test_locked),
-            "test_at_previous_0.80_test_tuned": _result_dict(test_previous),
+            "test_at_previous_production_0.80": _result_dict(test_previous),
             "val_sweep": [asdict(r) for r in val_sweep],
             "test_sweep": [asdict(r) for r in test_sweep],
         }
