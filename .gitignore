@@ -5,8 +5,7 @@
 /.generated/
 /paper/
 /datasets/
-/docs/INTERNSHIP_REPORT_TECHNICAL_SUMMARY.md
-/docs/assets/poster/
+/docs/
 
 # Python
 .venv/
