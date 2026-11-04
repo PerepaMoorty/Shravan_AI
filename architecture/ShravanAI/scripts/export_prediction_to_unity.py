@@ -105,6 +105,7 @@ import numpy as np
 import pandas as pd
 
 from prediction.features import load_augmented_window
+from prediction.events import first_pre_impact_event
 from prediction.labelers import FALL, NON_FALL, PRE_IMPACT
 from prediction.lead_time import summarize_lead_times
 from prediction.predict import load_prediction_model, predict_windows_batch
@@ -196,48 +197,6 @@ def _write_confidence_trace(predictions_df: pd.DataFrame, target_rate_hz: float,
     trace[["frame_idx", "timestamp_s", "proba_non_fall", "proba_pre_impact", "proba_fall"]].to_csv(
         out_path, index=False
     )
-
-
-def _first_pre_impact_event(
-    predictions_df: pd.DataFrame,
-    impact_frame: "int | None",
-    target_rate_hz: float,
-    pre_impact_threshold: float,
-) -> list[tuple[int, float, str, float]]:
-    """First window (by start_frame) whose `proba_pre_impact` clears
-    `pre_impact_threshold`, eligible per the module docstring's rule
-    (start_frame < impact_frame for a fall trial; no such restriction
-    for an ADL trial, where any firing is a genuine false alarm worth
-    reporting honestly). Empty list if none.
-
-    Uses a probability threshold rather than the model's raw argmax
-    label (`predicted_label == PRE_IMPACT`). Real numbers from a
-    held-out-test-set event-level sweep (2026-07-22, convlstm, trained on
-    the corrected KFall ground truth -- see readers_kfall.py's
-    FALL_TASK_IDS docstring for the label-parser bug fixed that session):
-    raw argmax (implicit threshold ~0.34) fires a false pre_impact event
-    often -- an initial 86% estimate could not be reproduced on a later
-    measurement; docs/COMPREHENSIVE_STATISTICAL_EVALUATION.md's rigorous
-    figure is 62.6% (275/439 ADL test trials) and supersedes it -- either
-    way unusable for a demo whose whole framing is "does it cry wolf."
-    The model's per-class probabilities
-    carry real, strong signal once judged at a stricter cutoff:
-    threshold=0.80 gives a false-alarm rate of ~10% while still catching
-    ~94% of real falls with ~1.5s mean lead time -- the best balance
-    found in that sweep (there is no threshold that gives both a zero
-    false-alarm rate AND 100% detection; this is a real, disclosed
-    tradeoff, not a bug). See `pre_impact_threshold`'s CLI help in
-    `main()` for the full sweep table."""
-    eligible = predictions_df[predictions_df["proba_pre_impact"] >= pre_impact_threshold]
-    if impact_frame is not None:
-        eligible = eligible[eligible["start_frame"] < impact_frame]
-    if len(eligible) == 0:
-        return []
-
-    first = eligible.sort_values("start_frame").iloc[0]
-    frame_idx = int(first["start_frame"])
-    timestamp_s = frame_idx / target_rate_hz
-    return [(frame_idx, timestamp_s, "pre_impact_predicted", float(first["proba_pre_impact"]))]
 
 
 def _merge_model_log(out_path: Path, new_events: list[tuple[int, float, str, float]]) -> None:
@@ -405,7 +364,7 @@ def main() -> None:
         )
 
         predictions_df = _predict_trial_windows(model, trial_row, windowing_config)
-        events = _first_pre_impact_event(
+        events = first_pre_impact_event(
             predictions_df, impact_frame, windowing_config.target_rate_hz, args.pre_impact_threshold
         )
 
