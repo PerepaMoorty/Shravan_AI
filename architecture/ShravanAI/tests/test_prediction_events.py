@@ -95,3 +95,43 @@ def test_sweep_is_monotone_in_threshold():
     far = [r.false_alarm_rate for r in results]
     assert all(a >= b for a, b in zip(det, det[1:]))
     assert all(a >= b for a, b in zip(far, far[1:]))
+
+
+# --- operating-point selection ---
+
+from prediction.events import EventLevelResult, select_architecture, select_threshold, wilson_interval
+
+
+def _r(thr, det, far, lead=1000.0):
+    return EventLevelResult(threshold=thr, n_fall_trials=100, n_fall_warned=int(det * 100), detection_rate=det,
+                            n_adl_trials=100, n_adl_false_alarm=int(far * 100), false_alarm_rate=far,
+                            mean_lead_time_ms=lead, median_lead_time_ms=lead)
+
+
+def test_select_threshold_maximises_detection_under_cap():
+    results = [_r(0.5, 0.99, 0.30), _r(0.6, 0.97, 0.12), _r(0.7, 0.95, 0.10), _r(0.8, 0.90, 0.05)]
+    chosen, fallback = select_threshold(results, max_false_alarm_rate=0.10)
+    assert chosen.threshold == 0.7 and not fallback
+
+
+def test_select_threshold_ties_go_to_higher_threshold():
+    results = [_r(0.7, 0.95, 0.09), _r(0.75, 0.95, 0.08), _r(0.8, 0.90, 0.05)]
+    assert select_threshold(results, 0.10)[0].threshold == 0.75
+
+
+def test_select_threshold_falls_back_when_cap_unreachable():
+    results = [_r(0.5, 0.99, 0.40), _r(0.9, 0.80, 0.20), _r(0.95, 0.70, 0.20)]
+    chosen, fallback = select_threshold(results, 0.10)
+    assert fallback and chosen.threshold == 0.9
+
+
+def test_select_architecture_prefers_detection_then_false_alarms():
+    assert select_architecture({"a": _r(0.8, 0.90, 0.05), "b": _r(0.7, 0.95, 0.09)}) == "b"
+    assert select_architecture({"a": _r(0.8, 0.95, 0.05), "b": _r(0.7, 0.95, 0.09)}) == "a"
+
+
+def test_wilson_interval():
+    lo, hi = wilson_interval(347, 370)
+    assert lo < 347 / 370 < hi and 0.90 < lo < 0.92 and 0.95 < hi < 0.97
+    assert wilson_interval(0, 0) is None
+    assert wilson_interval(0, 10)[0] == 0.0

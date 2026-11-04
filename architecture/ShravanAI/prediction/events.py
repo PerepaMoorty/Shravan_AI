@@ -18,6 +18,7 @@ label: raw argmax (implicit threshold ~0.34) fires a false alarm on
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
@@ -140,3 +141,38 @@ def sweep_thresholds(
     trials: Sequence[TrialPredictions], thresholds: Sequence[float], target_rate_hz: float = 100.0
 ) -> list[EventLevelResult]:
     return [evaluate_event_level(trials, t, target_rate_hz) for t in thresholds]
+
+
+# --- Operating-point selection (used on validation data only) ---
+
+def select_threshold(results: list[EventLevelResult], max_false_alarm_rate: float) -> tuple[EventLevelResult, bool]:
+    """Pre-registered rule. Among thresholds whose false-alarm rate is
+    <= the cap, take the highest detection rate; ties -> higher threshold
+    (fewer alarms for the same catch rate). If no threshold meets the
+    cap, fall back to the lowest false-alarm rate (ties -> higher
+    detection rate, then higher threshold). Returns (result, used_fallback)."""
+    within_cap = [r for r in results if r.false_alarm_rate is not None and r.false_alarm_rate <= max_false_alarm_rate]
+    if within_cap:
+        return max(within_cap, key=lambda r: (r.detection_rate, r.threshold)), False
+    return min(results, key=lambda r: (r.false_alarm_rate, -r.detection_rate, -r.threshold)), True
+
+
+def select_architecture(val_choices: dict[str, EventLevelResult]) -> str:
+    """Production architecture, chosen on VAL at each one's selected
+    threshold: highest detection rate, then lowest false-alarm rate,
+    then longest mean lead time."""
+    return max(
+        val_choices,
+        key=lambda a: (val_choices[a].detection_rate, -val_choices[a].false_alarm_rate,
+                       val_choices[a].mean_lead_time_ms or 0.0),
+    )
+
+
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float] | None:
+    if n == 0:
+        return None
+    p = k / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
