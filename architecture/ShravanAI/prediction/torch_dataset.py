@@ -130,3 +130,31 @@ class TrialGroupedBatchSampler(Sampler):
 
     def __len__(self) -> int:
         return (self._total + self.batch_size - 1) // self.batch_size
+
+
+class PrecomputedWindowDataset(Dataset):
+    """Same (x, y) items as `PredictionWindowDataset`, read from an array of
+    windows augmented ONCE up front (shape (n_total, 9, window_length),
+    e.g. a np.memmap) instead of re-loading and re-augmenting every window
+    every epoch -- that per-item loading, not the GPU, dominated training
+    time (~70 ms/batch vs ~10-30 ms GPU step).
+
+    `windows_df` must carry a `cache_row` column: each row's position in
+    `windows`. Item i is `windows[windows_df.cache_row[i]]`, so the
+    dataset stays positionally aligned with `windows_df` exactly like
+    `PredictionWindowDataset` (TrialGroupedBatchSampler relies on that).
+    """
+
+    def __init__(self, windows_df: pd.DataFrame, windows: np.ndarray):
+        if "cache_row" not in windows_df.columns:
+            raise ValueError("windows_df needs a 'cache_row' column pointing into `windows`")
+        self.rows = windows_df["cache_row"].to_numpy()
+        self.labels = windows_df["label_id"].to_numpy()
+        self.windows = windows
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        x = torch.from_numpy(np.array(self.windows[self.rows[idx]], dtype=np.float32))
+        return x, torch.tensor(int(self.labels[idx]), dtype=torch.long)

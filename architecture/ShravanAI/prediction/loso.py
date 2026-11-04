@@ -70,3 +70,27 @@ def get_fold_masks(windows_df: pd.DataFrame, fold: LOSOFold) -> tuple[np.ndarray
     test_mask = (windows_df["global_subject_id"] == fold.test_subject).to_numpy()
     train_mask = windows_df["global_subject_id"].isin(fold.train_subjects).to_numpy()
     return train_mask, test_mask
+
+
+def make_subject_kfolds(subjects, n_folds: int, seed: int = 42) -> list[tuple[str, ...]]:
+    """Partition `subjects` into `n_folds` disjoint, near-equal test groups
+    (sizes differ by at most one). Sorted first, then a seeded shuffle, so
+    the assignment is reproducible regardless of input order. A cheaper
+    alternative to full LOSO (`generate_loso_folds`) when one training run
+    per subject is too expensive."""
+    subjects = sorted(set(subjects))
+    if not 2 <= n_folds <= len(subjects):
+        raise ValueError(f"n_folds must be in [2, {len(subjects)}], got {n_folds}")
+    order = np.random.default_rng(seed).permutation(len(subjects))
+    return [tuple(sorted(subjects[i] for i in chunk)) for chunk in np.array_split(order, n_folds)]
+
+
+def pick_validation_subjects(candidates, n_val: int, seed: int) -> tuple[str, ...]:
+    """Seeded choice of `n_val` validation subjects from the subjects left
+    after removing a fold's test subjects (early stopping + threshold
+    selection happen on these; the test subjects are never touched)."""
+    candidates = sorted(set(candidates))
+    if not 1 <= n_val < len(candidates):
+        raise ValueError(f"n_val must be in [1, {len(candidates) - 1}], got {n_val}")
+    idx = np.random.default_rng(seed).choice(len(candidates), size=n_val, replace=False)
+    return tuple(sorted(candidates[i] for i in idx))

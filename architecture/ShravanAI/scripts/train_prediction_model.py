@@ -147,15 +147,22 @@ def train_one_architecture(
     batch_size: int,
     device: torch.device,
     pre_impact_boost: float,
+    dataset_factory=None,
 ) -> dict:
+    """`dataset_factory(df) -> Dataset` overrides how window tensors are
+    produced (e.g. `PrecomputedWindowDataset` for cross-validation); the
+    default, `PredictionWindowDataset`, loads and augments on the fly."""
     print(f"\n=== Training {architecture} ===")
     torch.manual_seed(42)
 
     window_length = windowing_config.window_length_samples
     rate = windowing_config.target_rate_hz
-    train_ds = PredictionWindowDataset(train_df, window_length, rate)
-    val_ds = PredictionWindowDataset(val_df, window_length, rate)
-    test_ds = PredictionWindowDataset(test_df, window_length, rate)
+    if dataset_factory is None:
+        def dataset_factory(df):
+            return PredictionWindowDataset(df, window_length, rate)
+    train_ds = dataset_factory(train_df)
+    val_ds = dataset_factory(val_df)
+    test_ds = dataset_factory(test_df)
 
     train_loader = DataLoader(
         train_ds, batch_sampler=TrialGroupedBatchSampler(train_df, batch_size, shuffle=True, seed=42)
